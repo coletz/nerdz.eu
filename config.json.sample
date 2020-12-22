@@ -21,5 +21,6 @@
     "CAMO_KEY": "THAT-CAMO-KEY",
     "MEDIA_HOST": "media.example.com",
     "TRUSTED_PROXIES": [],
-    "API_URL": "https://api.example.com"
+    "API_URL": "https://api.example.com",
+    "TELEGRAM_BOT_KEY": "..."
 }

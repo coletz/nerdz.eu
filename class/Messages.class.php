@@ -793,6 +793,30 @@ class Messages
             }
         }
 
+        if ($to != 0) {
+            $telegramId = User::getTelegramId($to);
+            if ($telegramId != 0) {
+                try {
+                    require_once $_SERVER['DOCUMENT_ROOT'].'/class/vendor/autoload.php';
+                    
+                    $sender = User::getUsername();
+                    $notificationMessage = '_[POST] from_ *'.$sender.'*'.PHP_EOL.$message;
+
+                    $telegramClient = new \Telegram\Bot\Api(Config\TELEGRAM_BOT_KEY);
+                    $telegramClient
+                        ->setAsyncRequest(true)
+                        ->sendMessage([
+                            'chat_id' => $telegramId, 
+                            'text' => $notificationMessage,
+                            'parse_mode' => 'markdown'                            
+                        ]);
+
+                } catch (Exception $exception) {
+                    System::dumpError('Telegram API: '.$exception->getMessage());
+                }
+            }
+        }
+
         return $retStr;
     }
 

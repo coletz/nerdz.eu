@@ -280,11 +280,12 @@ class Comments extends Messages
             } //simulate Db response
 
             if ($user->from == $_SESSION['id'] && $user->editable) {
+                $this->notifyTelegram($posts, $comments, $hpid, $message);
                 return $this->append($user, $message, $project);
             }
         }
 
-        return Db::query(
+        $retVal = Db::query(
             [
                 'INSERT INTO "'.$comments.'" ("from","hpid","message") VALUES (:from,:hpid,:message)',
                     [
@@ -295,6 +296,93 @@ class Comments extends Messages
                 ],
             Db::FETCH_ERRSTR
         );
+
+        $this->notifyTelegram($posts, $comments, $hpid, $message);
+
+        return $retVal;
+    }
+
+    private function notifyTelegram($posts, $comments, $hpid, $message)
+    {
+        /*
+            Devo recuperare tutti gli utenti che vogliono una notifica, quindi:
+            - prendo tutti gli utenti che hanno commentato questo post, tranne 
+            chi ha deciso di non ricevere update (posts_no_notify)
+            - rimuovo me stesso
+            - prendo l'utente che ha questo post in bacheca
+        */
+        $userInCommentIdsStmt = Db::query(
+            [
+                'SELECT DISTINCT '.$comments.'."from" AS userId FROM '.$comments.' 
+                WHERE '.$comments.'."hpid" = :hpid 
+                AND '.$comments.'."from" <> :myid 
+                AND NOT EXISTS (
+                    SELECT 1 FROM '.$posts.'_no_notify 
+                    WHERE '.$posts.'_no_notify."hpid" = :hpid 
+                    AND '.$comments.'."from" = '.$posts.'_no_notify.user
+                )',
+                [
+                    ':hpid' => $hpid,
+                    ':myid' => $_SESSION['id'],
+                ],
+            ],
+            Db::FETCH_STMT
+        );
+
+        $userInCommentIds = $userInCommentIdsStmt->fetchAll(PDO::FETCH_COLUMN, 0);
+
+        if ($userInCommentIds === null) {
+            return;
+        }
+
+        $o = Db::query(
+            [
+                'SELECT '.$posts.'."to" AS ownerid FROM '.$posts.' 
+                WHERE '.$posts.'."hpid" = :hpid',
+                [
+                    ':hpid' => $hpid
+                ],
+            ],
+            Db::FETCH_OBJ
+        );
+
+        if ($o === null || $o->ownerid === null) {
+            return;
+        }
+
+        $postOwnerId = $o->ownerid;
+
+        if(!in_array($postOwnerId, $userInCommentIds, true)){
+            array_push($userInCommentIds, $postOwnerId);
+        }
+
+        if (count($userInCommentIds) === 0) {
+            return;
+        }
+
+        require_once $_SERVER['DOCUMENT_ROOT'].'/class/vendor/autoload.php';
+        $telegramClient = new \Telegram\Bot\Api(Config\TELEGRAM_BOT_KEY);
+
+        foreach ($userInCommentIds as $userId) {
+            $telegramId = User::getTelegramId($userId);
+            if ($telegramId != 0) {
+                try {
+                    $sender = User::getUsername();
+                    $notificationMessage = '_[COMMENT] from_ *'.$sender.'*'.PHP_EOL.$message;
+
+                    $telegramClient
+                        ->setAsyncRequest(true)
+                        ->sendMessage([
+                            'chat_id' => $telegramId, 
+                            'text' => $notificationMessage,
+                            'parse_mode' => 'markdown'                            
+                        ]);
+
+                } catch (Exception $exception) {
+                    System::dumpError('Telegram API: '.$exception->getMessage());
+                }
+            }
+        }
     }
 
     public static function getMessage($hcid, $project = false)

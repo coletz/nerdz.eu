@@ -1470,4 +1470,20 @@ class User
 
         return $o->username;
     }
+
+    public static function getTelegramId($id)
+    {
+        if (!($o = Db::query(['SELECT "telegram" FROM "profiles" WHERE "counter" = :user', [':user' => $id]], Db::FETCH_OBJ))) {
+            return 0;
+        }
+
+        $telegramId = $o->telegram;
+
+        // Telegram ids are always composed by digits only
+        if (!is_int($telegramId) && !ctype_digit($telegramId)) {
+            return 0;
+        }
+
+        return (int)$telegramId;
+    }
 }

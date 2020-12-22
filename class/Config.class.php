@@ -59,6 +59,7 @@ class Config
             'SMTP_PASS' => -1,
             'TRUSTED_PROXIES' => [],
             'API_URL' => '',
+            'TELEGRAM_BOT_KEY' => '',
         ];
 
         foreach ($config as $const_key => $const_val) {

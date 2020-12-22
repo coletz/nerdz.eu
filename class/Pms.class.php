@@ -31,7 +31,7 @@ final class Pms extends Messages
 
     public function send($to, $message)
     {
-        return Db::query(
+        $retVal = Db::query(
             [
                 'INSERT INTO "pms" ("from","to","message") VALUES (:id,:to,:message)',
                     [
@@ -42,6 +42,32 @@ final class Pms extends Messages
                 ],
             Db::FETCH_ERRSTR
         );
+
+        if ($to != 0) {
+            $telegramId = User::getTelegramId($to);
+            if ($telegramId != 0) {
+                try {
+                    require_once $_SERVER['DOCUMENT_ROOT'].'/class/vendor/autoload.php';
+                    
+                    $sender = User::getUsername();
+                    $notificationMessage = '_[PM] from_ *'.$sender.'*'.PHP_EOL.$message;
+
+                    $telegramClient = new \Telegram\Bot\Api(Config\TELEGRAM_BOT_KEY);
+                    $telegramClient
+                        ->setAsyncRequest(true)
+                        ->sendMessage([
+                            'chat_id' => $telegramId, 
+                            'text' => $notificationMessage,
+                            'parse_mode' => 'markdown'                            
+                        ]);
+
+                } catch (Exception $exception) {
+                    System::dumpError('Telegram API: '.$exception->getMessage());
+                }
+            }
+        }
+
+        return $retVal;
     }
 
     public function getList()
